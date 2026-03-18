@@ -11,63 +11,104 @@ import traceback
 
 
 variants = [
-    [24, 5, 23, 4],
+    [28, 5, 19, 4],
     [24, 5, 16, 4],
-    [38, 6, 19, 2, 6, 16, 20],
-    [43, 17, 16, 2],
-    # Updated
-    [25, 5, 19, 4],
     [48, 17, 16, 2],
+    [48, 16, 19, 2],
+    [28, 4, 16, 4, 5],
+    [28, 4, 19, 4, 5],
 
-    [37, 8, 19, 4],
+    [40, 7, 19, 4],
     [37, 8, 16, 4],
-    [54, 8, 19, 2, 6, 24, 24],
-    [67, 25, 16, 2],
-    # Updated
-    [36, 7, 19, 4],
     [72, 25, 16, 2],
+    [72, 24, 19, 2],
+    [38, 5, 16, 4, 5],
+    [38, 5, 19, 4, 5],
 
-    [60, 10, 19, 4],
+    [50, 9, 19, 4],
     [60, 10, 16, 4],
-    [74, 11, 19, 2, 6, 32, 30],
-    [90, 33, 16, 2],
-    # Updated
-    [48, 9, 19, 4],
     [97, 33, 16, 2],
+    [96, 32, 19, 2],
+    [52, 6, 16, 4, 6],
+    [52, 6, 19, 4, 6],
 ]
 
 
+# SL I
+variants1 = [
+    [43, 6, 16, 2, 6, 16],
+    [44, 5, 16, 2, 8, 16],
+    [36, 5, 16, 3, 5],
+    [26, 3, 16, 4, 6],
+    [28, 4, 16, 4, 5, 5, 25],
+
+    [43, 6, 19, 2, 6, 16],
+    [43, 5, 23, 2, 7, 16],
+    [43, 5, 19, 2, 8, 16],
+    [28, 4, 19, 4, 5, 5, 25],
+]
+
+# SL3
+variants3 = [
+    [64, 8, 16, 2, 6, 24, 24],
+    [48, 8, 16, 3, 4],
+    [38, 5, 16, 4, 5],
+    [44, 6, 16, 4, 5],
+
+    [64, 8, 19, 2, 6],
+    [38, 4, 19, 4, 6],
+    [38, 5, 19, 4, 5],
+    [44, 6, 19, 4, 5],
+]
+
+# SL 5
+variants5 = [
+    [86, 11, 16, 2, 6, 32, 30],
+    [64, 9, 16, 3, 5],
+    [52, 6, 16, 4, 6],
+    [52, 7, 16, 4, 5],
+    [56, 8, 16, 4, 5],
+
+    [52, 6, 19, 4, 6],
+    [52, 7, 19, 4, 5],
+    [56, 8, 19, 4, 5],
+]
+
+variants += variants1 + variants3 + variants5
+
+
 def RegDim(np, mp, q):
-    precision = 200
+    precision = max(120, np + 1)
     R = PowerSeriesRing(ZZ, 't0', default_prec=precision)
     t0 = R.gens()[0]
 
-    # pol = (1 - t0**2)**mp / (1 - t0)**(np + 1)
-    pol = ((1 - t0**2) / (1 - t0**(2 * q)))**mp * ((1 - t0**q) / (1 - t0))**np / (1 - t0)
-    pol_coef = pol.coefficients()
+    if True:
+        pol = ((1 - t0**2) / (1 - t0**(2 * q)))**mp * ((1 - t0**q) / (1 - t0))**np / (1 - t0)
+    else:
+        pol = (1 - t0**2)**mp / (1 - t0)**(np + 1)
 
-    for d_reg in range(precision):
-        try:
-            if pol_coef[d_reg] <= 0:
-                return d_reg
-        except:
-            pass
-
+    pol_coef = pol.list()
+    for d_reg in range(len(pol_coef)):
+        if pol_coef[d_reg] <= 0:
+            return d_reg
     return 9999
 
 
-def GB(n, m, q):
+def MQ(n, m, q):
     dim = RegDim(n, m, q)
-    est = 3 * math.comb(n + 2, 2) * math.comb(n + dim, dim)**2
-    return est
+    if dim < 999:
+        est = 3 * math.comb(n + 2, 2) * math.comb(n + dim, dim)**2
+        return est
+    else:
+        return 2**4096
 
 
 def HybridMQ(n, m, q):
     # Overdetermined case
-    min = GB(m, m, q)
+    min = MQ(m, m, q)
     for k in range(max(0, n - m), n):
         try:
-            est = GB(n - k, m, q) * q**k
+            est = MQ(n - k, m, q) * q**k
             if est < min:
                 min = est
         except OverflowError:
@@ -80,11 +121,10 @@ def HashimotoMQ(n, m, q):
     minest = 2**1024
     for k in range(0, m):
         for a in range(2, m - k):
-            if (n >= ((a + 1) * (m - k - a + 1))) and (n >= (a * (m - k) -
-                                                             (a - 1)**2 + k)):
-                h1 = GB(m - a - k, m - a, q)
-                h2 = GB(a - 1, a - 1, q)
-                h3 = GB(a, a, q)
+            if (n >= ((a + 1) * (m - k - a + 1))) and (n >= (a * (m - k) - (a - 1)**2 + k)):
+                h1 = MQ(m - a - k, m - a, q)
+                h2 = MQ(a - 1, a - 1, q)
+                h3 = MQ(a, a, q)
                 est = q**k * (h1 + h2) + (m - a - k + 1) * h3
                 if est < minest:
                     minest = est
@@ -104,7 +144,7 @@ def SolveMQest(n, m, q):
     return math.floor(math.log2(qcomplex) + math.log2(est))
 
 
-def reconciliation(v, m1, q, l):
+def reconciliation(v, o, m1, q, l):
     logq = math.log2(q)
     qcomplex = 2 * logq**2 + logq
 
@@ -113,12 +153,7 @@ def reconciliation(v, m1, q, l):
     else:
         M = m1 * l**2
 
-    rec1 = math.floor(math.log2(qcomplex) + math.log2(HybridMQ(l * v, M, q)))
-
-    # Using Furue's comment in QR-UOV spec
-    rec2 = math.floor(math.log2(qcomplex) + math.log2(HybridMQ(l * v, max(M, l * v), q)))
-
-    return min(rec1, rec2)
+    return math.floor(math.log2(qcomplex) + math.log2(HybridMQ(l * v, M, q)) + logq * max(0, l * v - m1 * l**2))
 
 
 def wedge(v, o, l, m1, q):
@@ -164,7 +199,7 @@ def wedge(v, o, l, m1, q):
 def lifting_reconciliation(v, o, q, l, m1):
     try:
         c = math.ceil(v / o)
-        if symmetric:
+        if True and q % 2:
             return SolveMQest(c * v, (c * (c + 1)) // 2 * m1, q**l)
         else:
             return SolveMQest(c * v, c**2 * m1, q**l)
@@ -173,7 +208,7 @@ def lifting_reconciliation(v, o, q, l, m1):
 
 
 def lifting_intersection(v, o, q, l, m1):
-    if symmetric:
+    if q % 2:
         est = HybridMQ(2 * v - o, 3 * m1 - 2, q**l)
     else:
         est = HybridMQ(2 * v - o, 4 * m1 - 2, q**l)
@@ -190,7 +225,10 @@ for var in variants:
 
         if len(var) > 4:
             r = var[4]
-            m1 = var[5]
+            if len(var) > 5:
+                m1 = var[5]
+            else:
+                m1 = math.ceil(o * r / l)
         else:
             r = l
             m1 = math.ceil(o * r / l)
@@ -231,6 +269,18 @@ for var in variants:
             PACK_GF = 8
             PACK_BYTES = 5
 
+        elif q == 127:
+            PACK_GF = 8
+            PACK_BYTES = 7
+
+        elif q == 127**3:
+            PACK_GF = 8
+            PACK_BYTES = 21
+
+        elif q == 256:
+            PACK_GF = 1
+            PACK_BYTES = 1
+
         else:
             raise Exception('Unsupported q')
 
@@ -267,7 +317,7 @@ for var in variants:
         # Key recovery
         kipnisshamir_est = math.floor(math.log2(qcomplex) + logq * l * (v - o))
 
-        reconciliation_est = reconciliation(v, m1, q, l)
+        reconciliation_est = reconciliation(v, o, m1, q, l)
 
         if symmetric:
             intersection_est = HybridMQ(l * n + 1, 2 * l**2 * m1 + l * m1 - 2 * l, q)
@@ -290,9 +340,9 @@ for var in variants:
             lifting_int_est = 9999
 
         # Output
-        print(f'{var[:6]}\t& {pk} & {sig} &', end='')
+        print(f'(v={v}, o={o}, q={q}, l={l}, r={r}, m1={m1})\t& {pk} & {sig} &', end='')
         print(f'\t\t& {direst_est} & {collision} & {mlc_est} & {beullens_est} &', end='')
-        print(f'\t   {reconciliation_est} & MHr & {kipnisshamir_est} & {intersection_est} & MHi & {wedge_est} &', end='')
+        print(f'\t   {reconciliation_est} & MHrec & {kipnisshamir_est} & {intersection_est} & MHint & {wedge_est} &', end='')
         print(f'\t  {lifting_rec_est} & {lifting_ks_est} & {lifting_int_est}', end='')
         print('   \\\\')
         sys.stdout.flush()
