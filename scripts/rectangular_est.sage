@@ -39,18 +39,20 @@ variants1 = [
     [43, 6, 16, 2, 6, 16],
     [44, 5, 16, 2, 8, 16],
     [36, 5, 16, 3, 5],
-    [26, 3, 16, 4, 6],
-    [28, 4, 16, 4, 5, 5, 25],
+    [24, 3, 16, 4, 6],
+    [24, 3, 16, 4, 7, 5],
+    [28, 4, 16, 4, 5,],
 
     [43, 6, 19, 2, 6, 16],
-    [43, 5, 23, 2, 7, 16],
     [43, 5, 19, 2, 8, 16],
-    [28, 4, 19, 4, 5, 5, 25],
+    [24, 3, 19, 4, 6],
+    [24, 3, 19, 4, 7, 5],
+    [28, 4, 19, 4, 5,],
 ]
 
 # SL3
 variants3 = [
-    [64, 8, 16, 2, 6, 24, 24],
+    [55, 8, 16, 2, 6],
     [48, 8, 16, 3, 4],
     [38, 5, 16, 4, 5],
     [44, 6, 16, 4, 5],
@@ -63,7 +65,7 @@ variants3 = [
 
 # SL 5
 variants5 = [
-    [86, 11, 16, 2, 6, 32, 30],
+    [86, 11, 16, 2, 6,],
     [64, 9, 16, 3, 5],
     [52, 6, 16, 4, 6],
     [52, 7, 16, 4, 5],
@@ -76,6 +78,11 @@ variants5 = [
 
 variants += variants1 + variants3 + variants5
 
+plus1 = 0
+
+if plus1:
+    print('Using XL')
+
 
 def RegDim(np, mp, q):
     precision = max(120, np + 1)
@@ -83,9 +90,12 @@ def RegDim(np, mp, q):
     t0 = R.gens()[0]
 
     if True:
-        pol = ((1 - t0**2) / (1 - t0**(2 * q)))**mp * ((1 - t0**q) / (1 - t0))**np / (1 - t0)
+        if plus1:
+            pol = ((1 - t0**2) / (1 - t0**(2 * q)))**mp * ((1 - t0**q) / (1 - t0))**np / (1 - t0)
+        else:
+            pol = ((1 - t0**2) / (1 - t0**(2 * q)))**mp * ((1 - t0**q) / (1 - t0))**np
     else:
-        pol = (1 - t0**2)**mp / (1 - t0)**(np + 1)
+        pol = (1 - t0**2)**mp / (1 - t0)**(np + plus1)
 
     pol_coef = pol.list()
     for d_reg in range(len(pol_coef)):
@@ -97,7 +107,7 @@ def RegDim(np, mp, q):
 def MQ(n, m, q):
     dim = RegDim(n, m, q)
     if dim < 999:
-        est = 3 * math.comb(n + 2, 2) * math.comb(n + dim, dim)**2
+        est = 3 * math.comb(n + plus1 + 1, 2) * math.comb(n + plus1 - 1 + dim, dim)**2
         return est
     else:
         return 2**4096
@@ -222,11 +232,14 @@ for var in variants:
         o = var[1]
         q = var[2]
         l = var[3]
+        m2 = 0
 
         if len(var) > 4:
             r = var[4]
             if len(var) > 5:
                 m1 = var[5]
+                if len(var) > 6:
+                    m2 = var[6]
             else:
                 m1 = math.ceil(o * r / l)
         else:
@@ -238,7 +251,8 @@ for var in variants:
         logq = math.log2(q)
         qcomplex = 2 * logq**2 + logq
 
-        m2 = l * r * o
+        if m2 == 0:
+            m2 = l * r * o
         n = o + v
 
         if q == 16:
@@ -296,7 +310,7 @@ for var in variants:
 
         # Estimates
 
-        cs = math.log2(m1 * n ** 2 * l**2 * r**2 * qcomplex)
+        cs = math.log2(m1 * n**2 * l**3 * r * qcomplex)
         c = (17.5 + cs) / 2 + 1
 
         logq = math.log2(q)
@@ -305,7 +319,7 @@ for var in variants:
         # Forgery
         drop = l - 1
 
-        direst_est = SolveMQest(l * r * n, m2, q)
+        direct_est = SolveMQest(l * r * n, m2, q)
 
         mlc_est = math.floor(math.log2(q) / 2 * m2 + c)
 
@@ -315,6 +329,8 @@ for var in variants:
         beullens_est = SolveMQest(l * n - drop, min(m2, m1 * l**2) - drop, q)
 
         # Key recovery
+        # kipnisshamir_est = math.floor(math.log2(qcomplex) + logq * l * (v - o) + 2.8 * math.log2(n))
+        # Lower bounded by
         kipnisshamir_est = math.floor(math.log2(qcomplex) + logq * l * (v - o))
 
         reconciliation_est = reconciliation(v, o, m1, q, l)
@@ -341,7 +357,7 @@ for var in variants:
 
         # Output
         print(f'(v={v}, o={o}, q={q}, l={l}, r={r}, m1={m1})\t& {pk} & {sig} &', end='')
-        print(f'\t\t& {direst_est} & {collision} & {mlc_est} & {beullens_est} &', end='')
+        print(f'\t\t& {direct_est} & {collision} & {mlc_est} & {beullens_est} &', end='')
         print(f'\t   {reconciliation_est} & MHrec & {kipnisshamir_est} & {intersection_est} & MHint & {wedge_est} &', end='')
         print(f'\t  {lifting_rec_est} & {lifting_ks_est} & {lifting_int_est}', end='')
         print('   \\\\')
