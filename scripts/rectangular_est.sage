@@ -101,7 +101,7 @@ def RegDim(np, mp, q):
     for d_reg in range(len(pol_coef)):
         if pol_coef[d_reg] <= 0:
             return d_reg
-    return 9999
+    return math.inf
 
 
 def MQ(n, m, q):
@@ -110,34 +110,43 @@ def MQ(n, m, q):
         est = 3 * math.comb(n + plus1 + 1, 2) * math.comb(n + plus1 - 1 + dim, dim)**2
         return est
     else:
-        return 2**4096
+        return math.inf
 
 
 def HybridMQ(n, m, q):
-    # Overdetermined case
-    min = MQ(m, m, q)
-    for k in range(max(0, n - m), n):
+    # Overdetermined case, n < m
+    if m < n:
+        raise Exception('HybridMQ', n, m)
+
+    minest = math.inf
+    for k in range(n):
         try:
             est = MQ(n - k, m, q) * q**k
-            if est < min:
-                min = est
+            if est < minest:
+                minest = est
         except OverflowError:
             pass
-    return min
+    return minest
 
 
 def HashimotoMQ(n, m, q):
-    # Underdetermined case
-    minest = 2**1024
+    # Underdetermined case, n > m
+    if n < m:
+        raise Exception('HashimotoMQ', n, m)
+
+    minest = math.inf
     for k in range(0, m):
         for a in range(2, m - k):
-            if (n >= ((a + 1) * (m - k - a + 1))) and (n >= (a * (m - k) - (a - 1)**2 + k)):
-                h1 = MQ(m - a - k, m - a, q)
-                h2 = MQ(a - 1, a - 1, q)
-                h3 = MQ(a, a, q)
-                est = q**k * (h1 + h2) + (m - a - k + 1) * h3
-                if est < minest:
-                    minest = est
+            try:
+                if (n >= ((a + 1) * (m - k - a + 1))) and (n >= (a * (m - k) - (a - 1)**2 + k)):
+                    h1 = MQ(m - a - k, m - a, q)
+                    h2 = MQ(a - 1, a - 1, q)
+                    h3 = MQ(a, a, q)
+                    est = q**k * (h1 + h2) + (m - a - k + 1) * h3
+                    if est < minest:
+                        minest = est
+            except:
+                pass
 
     return minest
 
@@ -156,14 +165,13 @@ def SolveMQest(n, m, q):
 
 def reconciliation(v, o, m1, q, l):
     logq = math.log2(q)
-    qcomplex = 2 * logq**2 + logq
 
     if q % 2:
         M = m1 * (l * (l + 1)) // 2
     else:
         M = m1 * l**2
 
-    return math.floor(math.log2(qcomplex) + math.log2(HybridMQ(l * v, M, q)) + logq * max(0, l * v - m1 * l**2))
+    return math.floor(SolveMQest(l * v, M, q) + logq * max(0, l * v - m1 * l**2))
 
 
 def wedge(v, o, l, m1, q):
@@ -207,23 +215,26 @@ def wedge(v, o, l, m1, q):
 
 
 def lifting_reconciliation(v, o, q, l, m1):
-    try:
-        c = math.ceil(v / o)
-        if True and q % 2:
-            return SolveMQest(c * v, (c * (c + 1)) // 2 * m1, q**l)
-        else:
-            return SolveMQest(c * v, c**2 * m1, q**l)
-    except:
-        return 9999
+    c = math.ceil(v / o)
+    if True and q % 2:
+        return SolveMQest(c * v, (c * (c + 1)) // 2 * m1, q**l)
+    else:
+        return SolveMQest(c * v, c**2 * m1, q**l)
 
 
 def lifting_intersection(v, o, q, l, m1):
-    if q % 2:
-        est = HybridMQ(2 * v - o, 3 * m1 - 2, q**l)
-    else:
-        est = HybridMQ(2 * v - o, 4 * m1 - 2, q**l)
 
-    return math.floor(math.log2(qcomplex) + math.log2(est * q**(l * (v - 2 * o))))
+    if v < 2 * o:
+        est = SolveMQest(2 * v - o, 3 * m1 - 2, q**l)
+        return math.floor(est)
+
+    if q % 2:
+        est = SolveMQest(2 * v - o, 3 * m1 - 2, q**l)
+    else:
+        est = SolveMQest(2 * v - o, 4 * m1 - 2, q**l)
+    est = est + math.log2(q) * (l * (v - 2 * o))
+
+    return math.floor(est)
 
 
 for var in variants:
@@ -335,13 +346,18 @@ for var in variants:
 
         reconciliation_est = reconciliation(v, o, m1, q, l)
 
-        if symmetric:
-            intersection_est = HybridMQ(l * n + 1, 2 * l**2 * m1 + l * m1 - 2 * l, q)
+        if v < 2 * o:
+            if symmetric:
+                intersection_est = SolveMQest(l * (2 * v - o) + 1, 2 * l**2 * m1 + l * m1 - 2 * l, q)
+            else:
+                intersection_est = SolveMQest(l * (2 * v - o) + 1, 4 * l**2 * m1 - 2 * l, q)
         else:
-            intersection_est = HybridMQ(l * n + 1, 4 * l**2 * m1 - 2 * l, q)
-
-        intersection_est = math.floor(math.log2(qcomplex) + math.log2(intersection_est) +
-                                      logq * (l * v - 2 * l * o + 1))
+            if symmetric:
+                intersection_est = SolveMQest(l * n + 1, 2 * l**2 * m1 + l * m1 - 2 * l, q)
+            else:
+                intersection_est = SolveMQest(l * n + 1, 4 * l**2 * m1 - 2 * l, q)
+            intersection_est = intersection_est + logq * (l * v - 2 * l * o + 1)
+        intersection_est = math.floor(intersection_est)
 
         wedge_est = wedge(v, o, l, m1, q)
 
@@ -350,10 +366,7 @@ for var in variants:
 
         lifting_rec_est = lifting_reconciliation(v, o, q, l, m1)
 
-        try:
-            lifting_int_est = lifting_intersection(v, o, q, l, m1)
-        except:
-            lifting_int_est = 9999
+        lifting_int_est = lifting_intersection(v, o, q, l, m1)
 
         # Output
         print(f'(v={v}, o={o}, q={q}, l={l}, r={r}, m1={m1})\t& {pk} & {sig} &', end='')
