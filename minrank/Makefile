@@ -25,7 +25,7 @@ build:
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 analyze: build ./build/analyze
-	@./build/analyze 0 100000
+	@./build/analyze 0 100000000000
 
 ./build/ranktest: $(OBJS) ./build/ranktest.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)

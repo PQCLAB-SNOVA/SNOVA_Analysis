@@ -10,77 +10,32 @@
 
 #include "fips202.h"
 
-#if 1
+#if 0
 
-#define SNOVA_o 7
+#define SNOVA_o 17
 #define SNOVA_q 19
 #define SNOVA_l 2
-#define SNOVA_r 5
-#define SNOVA_m1 18
-#define SNOVA_alpha 20
-
-#elif 0
-
-#define SNOVA_o 8
-#define SNOVA_q 19
-#define SNOVA_l 2
-#define SNOVA_r 5
-#define SNOVA_m1 20
-#define SNOVA_alpha 20
-
-#elif 0
-
-#define SNOVA_o 9
-#define SNOVA_q 23
-#define SNOVA_l 2
-#define SNOVA_r 5
-#define SNOVA_m1 23
-#define SNOVA_alpha 22
-
-#elif 0
-
-#define SNOVA_o 8
-#define SNOVA_q 19
-#define SNOVA_l 2
-#define SNOVA_r 6
-#define SNOVA_m1 25
-#define SNOVA_alpha 24
-
-#elif 0
-
-#define SNOVA_o 11
-#define SNOVA_q 19
-#define SNOVA_l 2
-#define SNOVA_r 6
-#define SNOVA_m1 34
-#define SNOVA_alpha 30
+#define SNOVA_r 2
+// #define SNOVA_m1 17
+// #define SNOVA_alpha 8
 
 #elif 0
 
 #define SNOVA_o 6
 #define SNOVA_q 19
-#define SNOVA_l 3
-#define SNOVA_r 4
-#define SNOVA_m1 9
-#define SNOVA_alpha 20
-
-#elif 0
-
-#define SNOVA_o 5
-#define SNOVA_q 23
 #define SNOVA_l 4
-#define SNOVA_r 4
-#define SNOVA_m1 5
-#define SNOVA_alpha 20
+#define SNOVA_r 6
+// #define SNOVA_m1 9
+// #define SNOVA_alpha 36
 
 #else
 
-#define SNOVA_o 8
+#define SNOVA_o 5
 #define SNOVA_q 19
-#define SNOVA_l 2
+#define SNOVA_l 4
 #define SNOVA_r 4
-#define SNOVA_m1 17
-#define SNOVA_alpha 16
+// #define SNOVA_m1 5
+// #define SNOVA_alpha 20
 
 #endif
 
@@ -89,7 +44,7 @@
 #endif
 
 #ifndef SNOVA_alpha
-#define SNOVA_alpha (SNOVA_r * SNOVA_r + SNOVA_r)
+#define SNOVA_alpha (SNOVA_l * SNOVA_r + 2 * SNOVA_r)
 #endif
 
 #define SNOVA_l2 (SNOVA_l * SNOVA_l)
