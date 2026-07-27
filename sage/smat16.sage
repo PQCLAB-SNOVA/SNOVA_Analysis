@@ -1,7 +1,9 @@
 GF16 = GF(16, 'x')
 x = GF16.gen()
 
-fetch_int = lambda x: GF16._cache.fetch_int(x)
+
+def fetch_int(x): return GF16._cache.fetch_int(x)
+
 
 for L in range(2, 7):
     if L > 4:

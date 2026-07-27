@@ -8,7 +8,8 @@ q = 19
 
 GF_q = GF(q)
 x = GF_q.gen()
-fetch_int = lambda x: x
+def fetch_int(x): return x
+
 
 params = {}
 

@@ -6,11 +6,11 @@ CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -O3 -march=$(ARCH) -mtune=$(ARCH)
 
 OBJS += ./build/fips202.o
-HDRS = 
+HDRS =
 LIBS =
 
 
-all: build analyze
+all: build beullens_16
 
 clean:
 	rm -rf build __pycache__
@@ -21,14 +21,13 @@ build:
 ./build/%.o: %.c $(HDRS)
 	$(CC) $(CFLAGS) $(P) -o $@ -c $<
 
-./build/analyze: $(OBJS) ./build/beullens_attack.o
+./build/beullens_q: $(OBJS) ./build/beullens_q.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-analyze: build ./build/analyze
-	@./build/analyze 0 100000000000
+beullens_q: build ./build/beullens_q
+	@./build/beullens_q -1 1
 
-./build/ranktest: $(OBJS) ./build/ranktest.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+./build/beullens_16: $(OBJS) ./build/beullens_16.o $(LIBS)
 
-ranktest: build ./build/ranktest
-	@./build/ranktest
+beullens_16: build ./build/beullens_16
+	@./build/beullens_16 -1 1

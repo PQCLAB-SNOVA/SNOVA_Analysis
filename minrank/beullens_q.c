@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: MIT
+
 /**
  * Analyze rank and minrank of E matrix
+ *
+ * Copyright (c) 2026 SNOVA TEAM
  */
 
 #include <stdint.h>
@@ -10,37 +14,13 @@
 
 #include "fips202.h"
 
-#if 0
-
-#define SNOVA_o 17
-#define SNOVA_q 19
-#define SNOVA_l 2
-#define SNOVA_r 2
-// #define SNOVA_m1 17
-// #define SNOVA_alpha 8
-
-#elif 0
-
-#define SNOVA_o 6
-#define SNOVA_q 19
-#define SNOVA_l 4
-#define SNOVA_r 6
-// #define SNOVA_m1 9
-// #define SNOVA_alpha 36
-
-#else
-
 #define SNOVA_o 5
-#define SNOVA_q 19
-#define SNOVA_l 4
-#define SNOVA_r 4
-// #define SNOVA_m1 5
-// #define SNOVA_alpha 20
-
-#endif
+#define SNOVA_q 7
+#define SNOVA_l 3
+#define SNOVA_r 3
 
 #ifndef SNOVA_m1
-#define SNOVA_m1 ((SNOVA_o * SNOVA_r + SNOVA_l - 1) / SNOVA_l)
+#define SNOVA_m1 ((SNOVA_o * SNOVA_r) / SNOVA_l)
 #endif
 
 #ifndef SNOVA_alpha
@@ -52,6 +32,7 @@
 #define SNOVA_lr (SNOVA_l * SNOVA_r)
 #define SNOVA_olr16 ((SNOVA_o * SNOVA_lr + 15) / 16)
 #define SNOVA_olr (SNOVA_olr16 * 16)
+#define SNOVA_m2 (SNOVA_o * SNOVA_lr)
 
 #define SNOVA_m1l2 (((SNOVA_m1 * SNOVA_l2 + 15) / 16) * 16)
 
@@ -87,6 +68,30 @@ uint16_t C[4][4][4] = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}},
 	{{0, 0, 7, 5}, {0, 0, 6, 8}, {1, 0, 16, 1}, {0, 1, 4, 9}},
 	{{0, 7, 5, 17}, {0, 6, 8, 13}, {0, 16, 1, 14}, {1, 4, 9, 14}}
 };
+#elif SNOVA_l == 3 && SNOVA_q == 7
+uint16_t C[3][3][3] = {
+	{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}, {{0, 0, 15}, {1, 0, 7}, {0, 1, 0}}, {{0, 15, 0}, {0, 7, 15}, {1, 0, 7}}
+};
+#elif SNOVA_l == 4 && SNOVA_q == 7
+uint16_t C[4][4][4] = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}},
+	{{0, 0, 0, 1}, {1, 0, 0, 5}, {0, 1, 0, 6}, {0, 0, 1, 4}},
+	{{0, 0, 1, 4}, {0, 0, 5, 0}, {1, 0, 6, 1}, {0, 1, 4, 1}},
+	{{0, 1, 4, 1}, {0, 5, 0, 2}, {0, 6, 1, 6}, {1, 4, 1, 5}}
+};
+#elif SNOVA_l == 3 && SNOVA_q == 11
+uint16_t C[3][3][3] = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}, {{0, 0, 9}, {1, 0, 2}, {0, 1, 8}}, {{0, 9, 6}, {0, 2, 3}, {1, 8, 0}}};
+#elif SNOVA_l == 4 && SNOVA_q == 11
+uint16_t C[4][4][4] = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}},
+	{{0, 0, 0, 9}, {1, 0, 0, 0}, {0, 1, 0, 1}, {0, 0, 1, 8}},
+	{{0, 0, 9, 6}, {0, 0, 0, 9}, {1, 0, 1, 8}, {0, 1, 8, 10}},
+	{{0, 9, 6, 2}, {0, 0, 9, 6}, {0, 1, 8, 8}, {1, 8, 10, 0}}
+};
+#elif SNOVA_l == 4 && SNOVA_q == 13
+uint16_t C[4][4][4] = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}},
+	{{0, 0, 0, 3}, {1, 0, 0, 2}, {0, 1, 0, 8}, {0, 0, 1, 7}},
+	{{0, 0, 3, 8}, {0, 0, 2, 4}, {1, 0, 8, 6}, {0, 1, 7, 5}},
+	{{0, 3, 8, 2}, {0, 2, 4, 5}, {0, 8, 6, 5}, {1, 7, 5, 2}}
+};
 #else
 #error "Unsupported parameters"
 #endif
@@ -107,12 +112,12 @@ uint64_t get_nsec(void) {
 #endif
 }
 
-int get_rank(uint16_t matrix[SNOVA_m1 * SNOVA_l2][SNOVA_olr]) {
+int get_rank(uint16_t matrix[SNOVA_m1l2][SNOVA_olr]) {
 	int rank = 0;
 	for (int j1 = 0; j1 < SNOVA_o * SNOVA_lr; j1++) {
 		int i1;
 
-		for (i1 = rank; i1 < SNOVA_m1 * SNOVA_l2 - 1; i1++) {
+		for (i1 = rank; i1 < SNOVA_m1l2 - 1; i1++) {
 			if (matrix[i1][j1]) {
 				break;
 			}
@@ -132,15 +137,59 @@ int get_rank(uint16_t matrix[SNOVA_m1 * SNOVA_l2][SNOVA_olr]) {
 
 		uint16_t minverse = mininvtab[matrix[rank][j1]];
 
-		for (int i2 = rank + 1; i2 < SNOVA_m1 * SNOVA_l2; i2++) {
+		for (int i2 = rank + 1; i2 < SNOVA_m1l2; i2++) {
 			uint16_t gji = (minverse * matrix[i2][j1]) % SNOVA_q;
 			for (int j2 = 0; j2 < SNOVA_olr; j2++) {
 				matrix[i2][j2] += gji * matrix[rank][j2];
 			}
 		}
 
-		for (int i2 = rank + 1; i2 < SNOVA_m1 * SNOVA_l2; i2++) {
+		for (int i2 = rank + 1; i2 < SNOVA_m1l2; i2++) {
 			for (int j2 = 0; j2 < SNOVA_olr; j2++) {
+				matrix[i2][j2] = matrix[i2][j2] % SNOVA_q;
+			}
+		}
+
+		rank++;
+	}
+
+	return rank;
+}
+
+int get_rank_tr(uint16_t matrix[SNOVA_olr][SNOVA_m1l2]) {
+	int rank = 0;
+	for (int j1 = 0; j1 < SNOVA_m1 * SNOVA_l2; j1++) {
+		int i1;
+
+		for (i1 = rank; i1 < SNOVA_olr - 1; i1++) {
+			if (matrix[i1][j1]) {
+				break;
+			}
+		}
+
+		if (matrix[i1][j1] == 0) {
+			continue;
+		}
+
+		if (i1 > rank) {
+			for (int j2 = 0; j2 < SNOVA_m1l2; j2++) {
+				uint16_t temp = matrix[rank][j2];
+				matrix[rank][j2] = matrix[i1][j2];
+				matrix[i1][j2] = temp;
+			}
+		}
+
+		uint16_t minverse = mininvtab[matrix[rank][j1]];
+
+		for (int i2 = rank + 1; i2 < SNOVA_olr; i2++) {
+			uint16_t gji = (minverse * matrix[i2][j1]) % SNOVA_q;
+			for (int j2 = 0; j2 < SNOVA_m1l2; j2++) {
+				matrix[i2][j2] += gji * matrix[rank][j2];
+			}
+		}
+
+		for (int i2 = rank + 1; i2 < SNOVA_olr; i2++) {
+			for (int j2 = 0; j2 < SNOVA_m1l2; j2++) {
 				matrix[i2][j2] = matrix[i2][j2] % SNOVA_q;
 			}
 		}
@@ -212,7 +261,19 @@ void make_idx_table(uint32_t* idxt, char* seed) {
 	}
 }
 
-#if SNOVA_q == 19
+#if SNOVA_q == 7
+#define Q_A 4
+#define Q_B 6
+#define Q_C 1
+#elif SNOVA_q == 11
+#define Q_A 0
+#define Q_B 3
+#define Q_C 6
+#elif SNOVA_q == 13
+#define Q_A 2
+#define Q_B 11
+#define Q_C 3
+#elif SNOVA_q == 19
 #define Q_A 1
 #define Q_B 3
 #define Q_C 15
@@ -309,10 +370,17 @@ static inline void be_invertible_by_add_aS(uint16_t* mat, const uint16_t* orig, 
 int main(int argc, char** argv) {
 	if (argc < 3 || argc > 4) {
 		printf("Supply index, partitions, and (optional) number of loops\n");
+		printf("\tUsing an index of -1 will analyze the scalar subset\n");
+		printf("\tUsing an index of -2 will analyze the remaining subset with a_00 = 0\n");
 		return 0;
 	}
 
 	gen_S_array();
+
+	int maxrank = SNOVA_m2;
+	if (SNOVA_m1 * SNOVA_l2 < SNOVA_m2) {
+		maxrank = SNOVA_m1 * SNOVA_l2;
+	}
 
 	uint64_t num_r = 1;
 	uint64_t start = 0;
@@ -324,19 +392,22 @@ int main(int argc, char** argv) {
 
 	sscanf(argv[1], "%li", &num);
 	sscanf(argv[2], "%li", &tot);
-	if (num > tot) {
-		printf("Error: index > number of partitions\n");
+	if (num >= tot) {
+		printf("Error: index \u2265 number of partitions\n");
 		return 0;
 	}
 	if (argc == 4) {
 		sscanf(argv[3], "%li", &loops);
 	}
 
-	if (num == tot) {
-		for (int i1 = 0; i1 < SNOVA_l * (SNOVA_r - 2); i1++) {
+	if (num < 0) {
+		for (int i1 = 0; i1 < SNOVA_l * (SNOVA_r - 1); i1++) {
 			num_r *= SNOVA_q;
 		}
-		number_of_keys = 2 * num_r;
+		number_of_keys = 1;
+		for (int i1 = 0; i1 < (SNOVA_r - 1); i1++) {
+			number_of_keys *= SNOVA_q;
+		}
 	} else {
 		// q^{l(r-1)}
 		for (int i1 = 0; i1 < SNOVA_l * (SNOVA_r - 1); i1++) {
@@ -351,7 +422,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	printf("RectSNOVA (o=%d, r=%d, q=%d, l=%d, m1=%d)  ml2: %d, olr:%d,  Nalpha: %d\n", SNOVA_o, SNOVA_r, SNOVA_q, SNOVA_l,
+	printf("RectSNOVA (o=%d, q=%d, l=%d, r=%d, m1=%d)  ml2: %d, olr:%d,  Nalpha: %d\n", SNOVA_o, SNOVA_q, SNOVA_l, SNOVA_r,
 	       SNOVA_m1, SNOVA_m1 * SNOVA_l2, SNOVA_o * SNOVA_lr, SNOVA_alpha);
 	printf("Start: %ld, Tests: %ld / %ld (%.2e), Loops: %ld, Run %ld / %ld\n", start, number_of_keys, num_r, (double)num_r,
 	       loops, num, tot);
@@ -371,9 +442,9 @@ int main(int argc, char** argv) {
 		mininvtab[i1] = (SNOVA_q - val) % SNOVA_q;
 	}
 
-	for (int lind = 0; lind < loops; lind++) {
-		uint64_t counts[SNOVA_o * SNOVA_lr + 1] = {0};
+	uint64_t counts[SNOVA_o * SNOVA_lr + 1] = {0};
 
+	for (int lind = 0; lind < loops; lind++) {
 		char seed[32];
 		if (lind) {
 			snprintf((char*)seed, 32, "SNOVA_%ld", (uint64_t)lind);
@@ -386,93 +457,8 @@ int main(int argc, char** argv) {
 
 		uint16_t emat[EMAT_COLS][SNOVA_olr] = {0};
 
-#if 0
-		// Random emat
-		printf("   *** Random, seed: %s\n", seed);
-		for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
-			for (int j1 = 0; j1 < EMAT_COLS; j1++) {
-				emat[j1][i1] = rand_data[i1 * EMAT_COLS + j1] % SNOVA_q;
-			}
-		}
-#elif 0
-		// Companion emat with random permutation of columns
-
-		uint32_t idx_table[EMAT_COLS] = {0};
-
-		// Permute the Companion
-#if 1
-		make_idx_table(idx_table, seed);
-#else
-		for (int mi = 0; mi < EMAT_COLS; ++mi) {
-			idx_table[mi] = (229 * mi) % EMAT_COLS;
-		}
-#endif
-
-#if 0
-		printf("uint32_t idx_table[%d] = \n{", EMAT_COLS);
-		for (int mi = 0; mi < EMAT_COLS; ++mi) {
-			printf("%d, ", idx_table[mi]);
-		}
-		printf("};\n");
-#endif
-
-		uint8_t cmat[SNOVA_o * SNOVA_lr][SNOVA_o * SNOVA_lr] = {0};
-		// Companion
-		for (int mi = 1; mi < SNOVA_o * SNOVA_lr; ++mi) {
-			cmat[mi][mi - 1] = 1;
-		}
-		cmat[0][SNOVA_o * SNOVA_lr - 1] = 1;
-
-		// Irreducible Polynomials
-#if SNOVA_o * SNOVA_lr == 64
-		// x^64 + 18*x^7 + 18
-		cmat[7][SNOVA_o * SNOVA_lr - 1] = 1;
-
-#elif SNOVA_o * SNOVA_lr == 70
-		// x^70 + 18*x^9 + 18*x^4 + 18*x + 18
-		cmat[1][SNOVA_o * SNOVA_lr - 1] = 1;
-		cmat[4][SNOVA_o * SNOVA_lr - 1] = 1;
-		cmat[9][SNOVA_o * SNOVA_lr - 1] = 1;
-
-#elif SNOVA_o * SNOVA_lr == 72
-		// x^72 + 18*x^7 + 18*x^5 + 18*x + 18
-		cmat[1][SNOVA_o * SNOVA_lr - 1] = 1;
-		cmat[5][SNOVA_o * SNOVA_lr - 1] = 1;
-		cmat[7][SNOVA_o * SNOVA_lr - 1] = 1;
-
-#else
-#error
-#endif
-
-		printf("   *** Companion matrix %d, %d, %s\n", SNOVA_o * SNOVA_lr, SNOVA_q, seed);
-
-		// Identity
-		emat[idx_table[0]][0] = 1;
-
-		// Derived
-		for (int i1 = 1; i1 < EMAT_COLS; ++i1) {
-			for (int mi = 0; mi < SNOVA_o * SNOVA_lr; ++mi) {
-				uint16_t res = 0;
-				for (int mj = 0; mj < SNOVA_o * SNOVA_lr; ++mj) {
-					res += cmat[mi][mj] * emat[idx_table[i1 - 1]][mj];
-				}
-				emat[idx_table[i1]][mi] = res % SNOVA_q;
-			}
-		}
-
-#if 0
-		for (int i1 = 0; i1 < 1 * EMAT_COLS; ++i1) {
-			for (int mi = 0; mi < SNOVA_o * SNOVA_lr; ++mi) {
-				printf("%3d ", emat[idx_table[i1]][mi]);
-			}
-			printf("\n");
-		}
-
-#endif
-
-#else
-		// SNOVA 2.1, ring equation
-		printf("   *** Ring E, seed: %s\n", seed);
+		// printf("   *** Ring E, seed: %s\n", seed);
+		fflush(stdout);
 
 		uint16_t A[SNOVA_o * SNOVA_alpha * SNOVA_r2];
 		uint16_t B[SNOVA_o * SNOVA_alpha * SNOVA_lr];
@@ -515,52 +501,6 @@ int main(int argc, char** argv) {
 			}
 		}
 
-#if 0
-		// Compare to reference implementation
-		for (int idx = 0; idx < SNOVA_o * SNOVA_alpha; idx++) {
-			printf("Am %d\n", idx);
-			for (int i1 = 0; i1 < SNOVA_r; i1++) {
-				for (int j1 = 0; j1 < SNOVA_r; j1++) {
-					printf("%4d", Am[idx * SNOVA_r2 + i1 * SNOVA_r + j1]);
-				}
-				printf("\n");
-			}
-			printf("\n");
-		}
-		printf("\n");
-
-		for (int idx = 0; idx < SNOVA_o * SNOVA_alpha; idx++) {
-			printf("Bm %d\n", idx);
-			for (int i1 = 0; i1 < SNOVA_l; i1++) {
-				for (int j1 = 0; j1 < SNOVA_r; j1++) {
-					printf("%4d", Bm[idx * SNOVA_lr + i1 * SNOVA_r + j1]);
-				}
-				printf("\n");
-			}
-			printf("\n");
-		}
-		printf("\n");
-
-		for (int idx = 0; idx < SNOVA_o * SNOVA_alpha; idx++) {
-			printf("q1 %d\n", idx);
-			for (int i1 = 0; i1 < SNOVA_l; i1++) {
-				printf("%4d", q1[idx * SNOVA_l + i1]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-
-		for (int idx = 0; idx < SNOVA_o * SNOVA_alpha; idx++) {
-			printf("q2 %d\n", idx);
-			for (int i1 = 0; i1 < SNOVA_l; i1++) {
-				printf("%4d", q2[idx * SNOVA_l + i1]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-
-#endif
-
 		for (int mi = 0; mi < SNOVA_o; mi++)
 			for (int alpha = 0; alpha < SNOVA_alpha; ++alpha) {
 				int mj = (alpha + mi) % SNOVA_m1;
@@ -582,8 +522,6 @@ int main(int argc, char** argv) {
 									}
 			}
 
-#endif
-
 		// Test coefficients
 
 		for (uint64_t r1 = 0; r1 < number_of_keys; r1++) {
@@ -595,56 +533,93 @@ int main(int argc, char** argv) {
 			}
 
 			uint16_t rcoefs[SNOVA_lr] = {0};
-			if (num == tot) {
-				if (r1 == 0) {
-					continue;
-				}
-				rcoefs[SNOVA_l] = r1 % 2;
-				uint64_t r2 = r1 / 2;
-				for (int i1 = 0; i1 < SNOVA_l; i1++)
-					for (int j1 = 2; j1 < SNOVA_r; j1++) {
-						rcoefs[j1 * SNOVA_l + i1] = r2 % SNOVA_q;
-						r2 = r2 / SNOVA_q;
-					}
-			} else {
-				rcoefs[0] = 1;
 
-				uint64_t r2 = start + r1;
-				for (int i1 = 0; i1 < SNOVA_l; i1++)
-					for (int j1 = 1; j1 < SNOVA_r; j1++) {
-						rcoefs[j1 * SNOVA_l + i1] = r2 % SNOVA_q;
-						r2 = r2 / SNOVA_q;
-					}
+			if (num == -2 && r1 == 0) {
+				continue;
+			}
+			if (num != -2) {
+				rcoefs[0] = 1;
 			}
 
-			uint16_t etilde[SNOVA_m1l2][SNOVA_olr] = {0};
+			uint64_t r2 = start + r1;
+			for (int i1 = 0; i1 < SNOVA_l; i1++)
+				for (int j1 = 1; j1 < SNOVA_r; j1++) {
+					rcoefs[j1 * SNOVA_l + i1] = r2 % SNOVA_q;
+					r2 = r2 / SNOVA_q;
+				}
+
+			uint16_t matrix[SNOVA_m1l2][SNOVA_olr] = {0};
 
 			start_ns = get_nsec();
 
-			get_etilde(etilde, rcoefs, emat);
+			get_etilde(matrix, rcoefs, emat);
 
 			end_ns = get_nsec();
 			cycles0 += end_ns - start_ns;
 			start_ns = get_nsec();
 
-			int drop = SNOVA_o * SNOVA_lr - get_rank(etilde);
+#if SNOVA_m1 * SNOVA_l2 < SNOVA_o * SNOVA_l * SNOVA_r
+			uint16_t matrix_tr[SNOVA_olr][SNOVA_m1l2] = {0};
+			for (int i1 = 0; i1 < SNOVA_m1 * SNOVA_l2; i1++)
+				for (int j1 = 0; j1 < SNOVA_o * SNOVA_l * SNOVA_r; j1++) {
+					matrix_tr[j1][i1] = matrix[i1][j1];
+				}
+
+			start_ns = get_nsec();
+			int rank = get_rank_tr(matrix_tr);
+			cycles1 += get_nsec() - start_ns;
+#else
+			start_ns = get_nsec();
+			int rank = get_rank(matrix);
+			cycles1 += get_nsec() - start_ns;
+#endif
 
 			end_ns = get_nsec();
 			cycles1 += end_ns - start_ns;
 
+			if (rank > maxrank) {
+				printf("Rank Error %d (%ld) '%s' max:%d\n", rank, r1, seed, maxrank);
+				break;
+			}
+
+			int drop = maxrank - rank;
 			counts[drop]++;
-		}
 
-		for (int i1 = 0; i1 < 10; i1++) {
-			printf("%3d , %8ld\n", i1, counts[i1]);
-		}
+			if (drop >= SNOVA_l) {
+				// Check if rcoefs is in first few
+				int check = 0;
 
-		uint64_t sum = 0;
-		for (int i1 = 10; i1 <= SNOVA_o * SNOVA_lr; i1++) {
-			sum += counts[i1];
+				for (int i1 = 0; i1 < SNOVA_r; i1++) {
+					for (int j1 = 1; j1 < SNOVA_l; j1++) {
+						check |= rcoefs[i1 * SNOVA_l + j1];
+					}
+				}
+				if (check) {
+					printf(" !! Drop %d %d (%ld)\n", drop, check, r1);
+
+					for (int i1 = 0; i1 < SNOVA_r; i1++) {
+						for (int j1 = 0; j1 < SNOVA_l; j1++) {
+							printf("%2d ", rcoefs[i1 * SNOVA_l + j1]);
+						}
+						printf("\n");
+					}
+					printf("\n");
+					fflush(stdout);
+				}
+			}
 		}
-		printf("10+ , %8ld\n", sum);
 	}
+
+	for (int i1 = 0; i1 < 10; i1++) {
+		printf("%3d , %8ld\n", i1, counts[i1]);
+	}
+
+	uint64_t sum = 0;
+	for (int i1 = 10; i1 <= maxrank; i1++) {
+		sum += counts[i1];
+	}
+	printf("10+ , %8ld\n", sum);
+	fflush(stdout);
 
 	printf("Timing %.3f / %.3f  μsec: %.3f (%.2e)\n", cycles0 / 1e9, cycles1 / 1e9,
 	       (cycles0 + cycles1) / 1e3 / number_of_keys / loops, (double)num_r);
