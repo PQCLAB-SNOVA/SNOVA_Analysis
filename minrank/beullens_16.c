@@ -15,11 +15,13 @@
 
 #include "fips202.h"
 
+#define ABQ_ALG1 0
+#define ABQ_ALG2 1
+
 #define SNOVA_o 5
 #define SNOVA_q 16
-#define SNOVA_l 4
-#define SNOVA_r 4
-#define SNOVA_m1 5
+#define SNOVA_l 3
+#define SNOVA_r 3
 
 #ifndef SNOVA_m1
 #define SNOVA_m1 ((SNOVA_o * SNOVA_r) / SNOVA_l)
@@ -302,11 +304,40 @@ void convert_bytes_to_GF16s(const uint8_t* byte_array, gf_t* gf16_array, int num
 
 uint8_t fixed_abq[SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr + 2 * SNOVA_l)] = {0};
 
-static void gen_fixed_ABQ(const char* abq_seed) {
+static int gen_fixed_ABQ(const char* abq_seed) {
 	uint8_t rng_out[SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr + 2 * SNOVA_l)] = {0};
 
 	shake256(rng_out, SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr + 2 * SNOVA_l), (uint8_t*)abq_seed, strlen(abq_seed));
 	convert_bytes_to_GF16s(rng_out, fixed_abq, SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr + 2 * SNOVA_l));
+
+	int fails = 0;
+#if !ABQ_ALG1
+	// Check if q1 and q2 are always non zero
+	gf_t* aptr = fixed_abq;
+	gf_t* q1 = aptr + SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr);
+	gf_t* q2 = q1 + SNOVA_o * SNOVA_alpha * SNOVA_l;
+
+	// Check if q1 and q2 are always non zero
+	for (int i1 = 0 ; i1 < SNOVA_o * SNOVA_alpha; i1++) {
+		uint32_t sum1 = 0;
+		uint32_t sum2 = 0;
+		for (int j1 = 0 ; j1 < SNOVA_l; j1 ++) {
+			sum1 |= q1[i1 * SNOVA_l + j1];
+			sum2 |= q2[i1 * SNOVA_l + j1];
+		}
+		if ((sum1 == 0) || (sum2 == 0)) {
+			fails++;
+		}
+	}
+	if (fails) {
+		static int first = 1;
+		if (first) {
+			printf("Warning: Some q1,q2 are zero for (%s): %d\n", abq_seed, fails);
+			first = 0;
+		}
+	}
+#endif
+	return fails;
 }
 
 static inline void snova_init(void) {
@@ -319,7 +350,7 @@ static inline void snova_init(void) {
  */
 static inline void be_invertible_by_add_aS(gf_t* mat, const gf_t* orig, const int l1, const int l2) {
 	memcpy(mat, orig, l1 * l2);
-#if SNOVA_l > 1
+#if ABQ_ALG2 && SNOVA_l > 1
 	if ((l1 == SNOVA_l) && (l2 == SNOVA_l))
 		if (gf_mat_det(mat) == 0) {
 			for (gf_t f1 = 1; f1 < SNOVA_q; f1++) {
@@ -338,9 +369,11 @@ static inline void be_invertible_by_add_aS(gf_t* mat, const gf_t* orig, const in
  * Improve q and calculate Q matrix
  */
 static inline void gen_a_FqS(gf_t* Qm, gf_t* q) {
+#if ABQ_ALG1
 	if (!q[SNOVA_l - 1]) {
 		q[SNOVA_l - 1] = SNOVA_q - (q[0] + (q[0] == 0));
 	}
+#endif
 
 	for (int i1 = 0; i1 < SNOVA_l2; i1++) {
 		gf_t sum = 0;
@@ -354,8 +387,8 @@ static inline void gen_a_FqS(gf_t* Qm, gf_t* q) {
 /**
  * Use last part of the P matrix to establish ABQ
  */
-static void gen_ABQ(char* seed, gf_t* A, gf_t* Am, gf_t* Bm, gf_t* Q1m, gf_t* Q2m) {
-	gen_fixed_ABQ(seed);
+static int gen_ABQ(char* seed, gf_t* A, gf_t* Am, gf_t* Bm, gf_t* Q1m, gf_t* Q2m) {
+	int res = gen_fixed_ABQ(seed);
 
 	gf_t* B = A + SNOVA_o * SNOVA_alpha * SNOVA_r2;
 	gf_t* q1 = B + SNOVA_o * SNOVA_alpha * SNOVA_lr;
@@ -367,6 +400,7 @@ static void gen_ABQ(char* seed, gf_t* A, gf_t* Am, gf_t* Bm, gf_t* Q1m, gf_t* Q2
 		gen_a_FqS(&Q1m[idx * SNOVA_l2], &q1[idx * SNOVA_l]);
 		gen_a_FqS(&Q2m[idx * SNOVA_l2], &q2[idx * SNOVA_l]);
 	}
+	return res;
 }
 
 // Generate ABQ
@@ -580,6 +614,7 @@ int main(int argc, char** argv) {
 	       SNOVA_m1, SNOVA_m1 * SNOVA_l2, SNOVA_o * SNOVA_lr, SNOVA_alpha);
 	printf("Start: %ld, Tests: %ld / %.0f (%.2e), Loops: %ld, Run %ld / %ld\n", start, number_of_keys, num_r, num_r, loops, num,
 	       tot);
+	printf("Alg 1: %d, and alg 2: %d\n", ABQ_ALG1, ABQ_ALG2);
 	fflush(stdout);
 
 	snova_init();
@@ -596,14 +631,23 @@ int main(int argc, char** argv) {
 	}
 
 	char seed[32] = {0};
+	uint64_t lindex = 0;
 	for (uint64_t index = 0; index < loops; index++) {
 		if (index) {
-			snprintf((char*)seed, 32, "SNOVA_ABQ_%ld", (uint64_t)index);
+			snprintf((char*)seed, 32, "SNOVA_ABQ_%ld", (uint64_t)lindex);
 		} else {
 			snprintf((char*)seed, 32, "SNOVA_ABQ");
 		}
+		if (index) {
+			// printf("Using %s\n", seed);
+		}
+		lindex++;
 
-		gen_ABQ(seed, fixed_abq, Am, Bm, Q1, Q2);
+		if (gen_ABQ(seed, fixed_abq, Am, Bm, Q1, Q2)) {
+			// printf("Skipping %s\n", seed);
+			index--;
+			continue;
+		};
 
 		gf_t* B = fixed_abq + SNOVA_o * SNOVA_alpha * SNOVA_r2;
 		q1 = B + SNOVA_o * SNOVA_alpha * SNOVA_lr;
@@ -682,7 +726,7 @@ int main(int argc, char** argv) {
 				minminrank = rank;
 			}
 
-			if (rank <= maxrank - SNOVA_l) {
+			if (rank <= maxrank - 2 * SNOVA_l) {
 				printf("Rank %d (%ld) '%s' %ld\n", rank, r1, seed, index);
 				fflush(stdout);
 				// break;
@@ -696,6 +740,7 @@ int main(int argc, char** argv) {
 
 	printf("Timing %.3f / %.3f  μsec: %.3f\n", cycles1 / 1e9, cycles2 / 1e9,
 	       (cycles1 + cycles2) / 1e3 / number_of_keys / loops);
+	printf("  Skipped %ld seeds\n", lindex - loops);
 
 	return 0;
 }

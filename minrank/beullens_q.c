@@ -14,6 +14,9 @@
 
 #include "fips202.h"
 
+#define ABQ_ALG1 0
+#define ABQ_ALG2 1
+
 #define SNOVA_o 5
 #define SNOVA_q 7
 #define SNOVA_l 3
@@ -354,6 +357,7 @@ static uint16_t gf_mat_det(uint16_t* a) {
  */
 static inline void be_invertible_by_add_aS(uint16_t* mat, const uint16_t* orig, const int l1, const int l2) {
 	memcpy(mat, orig, 2 * l1 * l2);
+#if ABQ_ALG2
 	if ((l1 == SNOVA_l) && (l2 == SNOVA_l))
 		if (gf_mat_det(mat) == 0) {
 			for (uint16_t f1 = 1; f1 < SNOVA_q; f1++) {
@@ -365,6 +369,7 @@ static inline void be_invertible_by_add_aS(uint16_t* mat, const uint16_t* orig, 
 				}
 			}
 		}
+#endif
 }
 
 int main(int argc, char** argv) {
@@ -426,6 +431,7 @@ int main(int argc, char** argv) {
 	       SNOVA_m1, SNOVA_m1 * SNOVA_l2, SNOVA_o * SNOVA_lr, SNOVA_alpha);
 	printf("Start: %ld, Tests: %ld / %ld (%.2e), Loops: %ld, Run %ld / %ld\n", start, number_of_keys, num_r, (double)num_r,
 	       loops, num, tot);
+	printf("Alg 1: %d, and alg 2: %d\n", ABQ_ALG1, ABQ_ALG2);
 	fflush(stdout);
 
 	uint64_t cycles0 = 0;
@@ -444,13 +450,15 @@ int main(int argc, char** argv) {
 
 	uint64_t counts[SNOVA_o * SNOVA_lr + 1] = {0};
 
+	int lindex = 0;
 	for (int lind = 0; lind < loops; lind++) {
 		char seed[32];
-		if (lind) {
-			snprintf((char*)seed, 32, "SNOVA_%ld", (uint64_t)lind);
+		if (lindex) {
+			snprintf((char*)seed, 32, "SNOVA_%ld", (uint64_t)lindex);
 		} else {
 			snprintf((char*)seed, 32, "SNOVA_ABQ");
 		}
+		lindex++;
 
 		uint8_t rand_data[SNOVA_o * SNOVA_lr * EMAT_COLS];
 		shake256(rand_data, SNOVA_o * SNOVA_lr * EMAT_COLS, (unsigned char*)seed, strlen(seed));
@@ -489,16 +497,45 @@ int main(int argc, char** argv) {
 				index++;
 			}
 
+#if !ABQ_ALG1
+		int fails = 0;
+		// Check if q1 and q2 are always non zero
+		for (int i1 = 0 ; i1 < SNOVA_o * SNOVA_alpha; i1++) {
+			uint32_t sum1 = 0;
+			uint32_t sum2 = 0;
+			for (int j1 = 0 ; j1 < SNOVA_l; j1 ++) {
+				sum1 |= q1[i1 * SNOVA_l + j1];
+				sum2 |= q2[i1 * SNOVA_l + j1];
+			}
+			if ((sum1 == 0) || (sum2 == 0)) {
+				fails++;
+			}
+		}
+		if (fails) {
+			static int first = 1;
+			if (first) {
+				printf("Warning: Some q1,q2 are zero for (%s): %d\n", seed, fails);
+				first = 0;
+			}
+			// printf("Skipping %s\n", seed);
+			lind--;
+			continue;
+		}
+#endif
+
+
 		for (int idx = 0; idx < SNOVA_o * SNOVA_alpha; idx++) {
 			be_invertible_by_add_aS(&(Am[idx * SNOVA_r2]), &A[idx * SNOVA_r2], SNOVA_r, SNOVA_r);
 			be_invertible_by_add_aS(&(Bm[idx * SNOVA_lr]), &B[idx * SNOVA_lr], SNOVA_r, SNOVA_l);
 
+#if ABQ_ALG1
 			if (!q1[idx * SNOVA_l + SNOVA_l - 1]) {
 				q1[idx * SNOVA_l + SNOVA_l - 1] = SNOVA_q - (q1[idx * SNOVA_l] + (q1[idx * SNOVA_l] == 0));
 			}
 			if (!q2[idx * SNOVA_l + SNOVA_l - 1]) {
 				q2[idx * SNOVA_l + SNOVA_l - 1] = SNOVA_q - (q2[idx * SNOVA_l] + (q2[idx * SNOVA_l] == 0));
 			}
+#endif
 		}
 
 		for (int mi = 0; mi < SNOVA_o; mi++)
@@ -623,6 +660,7 @@ int main(int argc, char** argv) {
 
 	printf("Timing %.3f / %.3f  μsec: %.3f (%.2e)\n", cycles0 / 1e9, cycles1 / 1e9,
 	       (cycles0 + cycles1) / 1e3 / number_of_keys / loops, (double)num_r);
+	printf("  Skipped %ld seeds\n", lindex - loops);
 
 	return 0;
 }
